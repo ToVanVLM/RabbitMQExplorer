@@ -1,0 +1,78 @@
+@page
+@model RabbitMQExplorer.Web.Pages.Connections.IndexModel
+@{
+    ViewData["Title"] = "Verbindingen";
+    Layout = "_Layout";
+}
+
+@section HeadStyles {
+<style>html,body{overflow:auto;height:auto}</style>
+}
+
+<partial name="_ManagementNav" />
+
+<div style="padding:24px;width:100%;max-width:none;margin:0">
+    <div class="d-flex gap-2" style="margin-bottom:16px;align-items:center">
+        <h1 style="font-size:18px;font-weight:600;flex:1">Verbindingen</h1>
+        <a href="/Connections/Create" class="btn">+ Nieuwe verbinding</a>
+    </div>
+
+    @if (!Model.Connections.Any())
+    {
+        <div class="empty-state" style="height:300px;border:1px solid var(--border-default);border-radius:var(--radius-md)">
+            <h3>Geen verbindingen geconfigureerd</h3>
+            <p>Voeg een RabbitMQ Management API verbinding toe om te beginnen.</p>
+            <a href="/Connections/Create" class="btn">Verbinding toevoegen</a>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap table-wrap--connections">
+            <table class="msg-table connections-table">
+                <thead>
+                    <tr>
+                        <th>Naam</th>
+                        <th>Host</th>
+                        <th>Poort</th>
+                        <th>Gebruiker</th>
+                        <th>Omgeving</th>
+                        <th>Default VHost</th>
+                        <th>Aangemaakt</th>
+                        <th class="connections-table__actions-col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in Model.Connections)
+                    {
+                        <tr>
+                            <td><strong>@c.Name</strong></td>
+                            <td class="text-mono">@c.Host</td>
+                            <td class="text-mono">@c.Port</td>
+                            <td>@c.Username</td>
+                            <td><span class="env-badge @c.Environment.ToLower()">@c.Environment</span></td>
+                            <td class="text-mono">@c.DefaultVHost</td>
+                            <td class="text-muted">@c.CreatedAt.ToString("dd/MM/yyyy")</td>
+                            <td class="connections-table__actions-cell">
+                                <div class="d-flex gap-1" style="align-items:center">
+                                    @if (c.IsReadOnly)
+                                    {
+                                        <span class="badge-readonly" title="Read-only verbinding">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                            Read-only
+                                        </span>
+                                    }
+                                    <a href="/Connections/Edit/@c.Id" class="btn btn--ghost">Bewerken</a>
+                                    <form method="post" asp-page-handler="Delete" asp-route-id="@c.Id"
+                                          onsubmit="return confirm('Verbinding \'@c.Name\' verwijderen?')">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn--danger">Verwijderen</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

@@ -1,0 +1,152 @@
+@page
+@{
+    ViewData["Title"] = "Extractieregels";
+    Layout = "_Layout";
+}
+
+@section HeadStyles {
+<style>html,body{overflow:auto;height:auto}</style>
+}
+
+<partial name="_ManagementNav" />
+
+<div style="padding:24px;width:100%">
+    <div class="d-flex gap-2" style="margin-bottom:16px;align-items:center">
+        <h1 style="font-size:18px;font-weight:600;flex:1">Extractieregels</h1>
+    </div>
+
+    <div style="background:var(--bg-sidebar);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px;margin-bottom:16px">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Nieuwe regel</h2>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(120px,1fr)) auto;gap:8px;align-items:end">
+            <div>
+                <label class="form-label" for="ruleName">Naam</label>
+                <input id="ruleName" class="form-control" />
+            </div>
+            <div>
+                <label class="form-label" for="ruleQueuePattern">Queue pattern</label>
+                <input id="ruleQueuePattern" class="form-control" value="*" />
+            </div>
+            <div>
+                <label class="form-label" for="ruleType">Type</label>
+                <select id="ruleType" class="form-control">
+                    <option value="0">JsonPath</option>
+                    <option value="1">XPath</option>
+                    <option value="2">Regex</option>
+                </select>
+            </div>
+            <div>
+                <label class="form-label" for="ruleExpression">Expression</label>
+                <input id="ruleExpression" class="form-control" />
+            </div>
+            <div>
+                <label class="form-label" for="ruleColumn">Kolomnaam</label>
+                <input id="ruleColumn" class="form-control" />
+            </div>
+            <div>
+                <label class="form-label" for="ruleActive">Actief</label>
+                <select id="ruleActive" class="form-control">
+                    <option value="true" selected>Ja</option>
+                    <option value="false">Nee</option>
+                </select>
+            </div>
+            <button type="button" class="btn" onclick="createRule()">Toevoegen</button>
+        </div>
+    </div>
+
+    <div style="background:var(--bg-sidebar);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:0;overflow:hidden">
+        <table class="msg-table">
+            <thead>
+                <tr>
+                    <th>Naam</th>
+                    <th>Pattern</th>
+                    <th>Type</th>
+                    <th>Expression</th>
+                    <th>Kolom</th>
+                    <th>Actief</th>
+                    <th>Aangemaakt</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="rulesBody">
+                <tr><td colspan="8" class="text-muted" style="text-align:center;padding:14px">Laden...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+const typeLabels = ['JsonPath', 'XPath', 'Regex'];
+
+async function loadRules() {
+    const body = document.getElementById('rulesBody');
+    body.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align:center;padding:14px">Laden...</td></tr>';
+    try {
+        const rules = await App.apiGet('/api/extraction-rules');
+        if (!rules.length) {
+            body.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align:center;padding:14px">Geen extractieregels geconfigureerd.</td></tr>';
+            return;
+        }
+        body.innerHTML = rules.map(r => `
+            <tr>
+                <td>${App.escHtml(r.name ?? '')}</td>
+                <td class="mono">${App.escHtml(r.queuePattern ?? '')}</td>
+                <td>${typeLabels[r.type] ?? r.type}</td>
+                <td class="mono" title="${App.escHtml(r.expression ?? '')}">${App.escHtml(r.expression ?? '')}</td>
+                <td class="mono">${App.escHtml(r.columnName ?? '')}</td>
+                <td>${r.isActive ? 'Ja' : 'Nee'}</td>
+                <td class="text-muted">${new Date(r.createdAt).toLocaleDateString('nl-BE')}</td>
+                <td><button class="btn btn--danger" type="button" onclick="deleteRule(${r.id})">Verwijderen</button></td>
+            </tr>`).join('');
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="8" class="text-error" style="text-align:center;padding:14px">${App.escHtml(e.message)}</td></tr>`;
+    }
+}
+
+async function createRule() {
+    const name = document.getElementById('ruleName').value.trim();
+    const queuePattern = document.getElementById('ruleQueuePattern').value.trim() || '*';
+    const type = parseInt(document.getElementById('ruleType').value, 10);
+    const expression = document.getElementById('ruleExpression').value.trim();
+    const columnName = document.getElementById('ruleColumn').value.trim();
+    const isActive = document.getElementById('ruleActive').value === 'true';
+
+    if (!name || !expression || !columnName) {
+        Toast.warn('Naam, expression en kolomnaam zijn verplicht.');
+        return;
+    }
+
+    try {
+        await App.apiPost('/api/extraction-rules', {
+            name,
+            queuePattern,
+            type,
+            expression,
+            columnName,
+            isActive,
+            createdAt: new Date().toISOString()
+        });
+        document.getElementById('ruleName').value = '';
+        document.getElementById('ruleExpression').value = '';
+        document.getElementById('ruleColumn').value = '';
+        Toast.success('Extractieregel toegevoegd.');
+        await loadRules();
+    } catch (e) {
+        Toast.error('Toevoegen mislukt: ' + e.message);
+    }
+}
+
+async function deleteRule(id) {
+    if (!confirm('Deze extractieregel verwijderen?')) return;
+    try {
+        await App.apiDelete(`/api/extraction-rules/${id}`);
+        Toast.success('Extractieregel verwijderd.');
+        await loadRules();
+    } catch (e) {
+        Toast.error('Verwijderen mislukt: ' + e.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadRules);
+</script>
+}

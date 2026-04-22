@@ -1,0 +1,116 @@
+@page
+@model RabbitMQExplorer.Web.Pages.Connections.CreateModel
+@{
+    ViewData["Title"] = "Verbinding toevoegen";
+    Layout = "_Layout";
+}
+
+@section HeadStyles {
+<style>html,body{overflow:auto;height:auto}</style>
+}
+
+<partial name="_ManagementNav" />
+
+<div style="padding:24px;width:100%">
+    <div class="d-flex gap-2" style="margin-bottom:20px;align-items:center">
+        <h1 style="font-size:18px;font-weight:600">Verbinding toevoegen</h1>
+    </div>
+
+    <form method="post" style="max-width:680px">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-error" style="margin-bottom:12px"></div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Name">Naam *</label>
+            <input class="form-control" asp-for="Input.Name" placeholder="bv. RabbitMQ Productie" />
+            <span asp-validation-for="Input.Name" class="text-error" style="font-size:11px"></span>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Host">Host (Management API) *</label>
+            <input class="form-control" asp-for="Input.Host" placeholder="bv. localhost of rabbitmq.intern.be" />
+            <span asp-validation-for="Input.Host" class="text-error" style="font-size:11px"></span>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Port">Poort</label>
+            <input class="form-control" asp-for="Input.Port" type="number" style="width:120px" />
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Username">Gebruikersnaam *</label>
+            <input class="form-control" asp-for="Input.Username" autocomplete="username" />
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Password">Wachtwoord *</label>
+            <input class="form-control" asp-for="Input.Password" type="password" autocomplete="new-password" />
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.DefaultVHost">Standaard VHost</label>
+            <input class="form-control" asp-for="Input.DefaultVHost" />
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" asp-for="Input.Environment">Omgeving</label>
+            <select class="form-control" asp-for="Input.Environment" style="width:150px">
+                <option value="DEV">DEV</option>
+                <option value="TST">TST</option>
+                <option value="ACC">ACC</option>
+                <option value="PRD">PRD</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" asp-for="Input.UseSsl" />
+                <span class="form-label" style="margin:0">Gebruik HTTPS (SSL)</span>
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" asp-for="Input.IsReadOnly" />
+                <span class="form-label" style="margin:0">Read-only (muterende acties uitgeschakeld)</span>
+            </label>
+        </div>
+
+        <div class="d-flex gap-2" style="margin-top:20px">
+            <button type="submit" class="btn">Verbinding opslaan</button>
+            <button type="button" class="btn btn--ghost" id="btnTest" onclick="testConnection()">Verbinding testen</button>
+            <a href="/Connections" class="btn btn--ghost">Annuleren</a>
+        </div>
+        <div id="testResult" style="margin-top:10px;font-size:12px"></div>
+    </form>
+</div>
+
+@section Scripts {
+<script>
+async function testConnection() {
+    const btn = document.getElementById('btnTest');
+    const result = document.getElementById('testResult');
+    btn.disabled = true;
+    result.textContent = 'Testen...';
+    result.style.color = 'var(--fg-muted)';
+    try {
+        const form = btn.closest('form');
+        const data = new FormData(form);
+        const resp = await fetch('/api/connections/test', { method: 'POST', body: data });
+        const json = await resp.json();
+        if (json.success) {
+            result.textContent = '✓ Verbinding geslaagd: ' + (json.message ?? '');
+            result.style.color = 'var(--fg-success)';
+        } else {
+            result.textContent = '✗ Mislukt: ' + (json.message ?? 'Onbekende fout');
+            result.style.color = 'var(--fg-error)';
+        }
+    } catch(e) {
+        result.textContent = '✗ Fout: ' + e.message;
+        result.style.color = 'var(--fg-error)';
+    } finally {
+        btn.disabled = false;
+    }
+}
+</script>
+}

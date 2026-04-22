@@ -1,0 +1,97 @@
+@page
+@model RabbitMQExplorer.Web.Pages.Dashboard.IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_Layout";
+}
+
+<partial name="_ManagementNav" />
+
+<div class="mgmt-content">
+    <div class="mgmt-page-header">
+        <h1 class="mgmt-page-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="18" height="18">
+                <rect x="3" y="3" width="7" height="7" rx="1"/>
+                <rect x="14" y="3" width="7" height="7" rx="1"/>
+                <rect x="3" y="14" width="7" height="7" rx="1"/>
+                <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            Dashboard
+        </h1>
+        <div class="mgmt-page-actions">
+            <span id="dashTimestamp" class="text-muted" style="font-size:11px;align-self:center"></span>
+            <button class="btn btn--ghost" id="btnRefreshDash" onclick="Dashboard.load()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                    <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.66"/>
+                </svg>
+                Vernieuwen
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading / error state -->
+    <div id="dashLoading" class="dash-loading">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32" class="spin">
+            <path d="M21 12a9 9 0 1 1-9-9"/>
+        </svg>
+        Gegevens ophalen…
+    </div>
+    <div id="dashError" class="dash-error" style="display:none"></div>
+
+    <!-- Dashboard cards -->
+    <div id="dashCards" class="dash-grid" style="display:none">
+
+        <!-- Connections health -->
+        <div class="dash-card dash-card--full">
+            <div class="dash-card__header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                Verbindingen
+            </div>
+            <table class="dash-table" id="tblConnections">
+                <thead><tr><th>Verbinding</th><th>Omgeving</th><th>Status</th><th>Fout</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Top by depth -->
+        <div class="dash-card">
+            <div class="dash-card__header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14">
+                    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+                    <line x1="6" y1="20" x2="6" y2="14"/>
+                </svg>
+                Top 10 — Meeste berichten
+            </div>
+            <table class="dash-table" id="tblTopDepth">
+                <thead><tr><th>Queue</th><th>VHost</th><th>Verbinding</th><th class="num">Berichten</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Top by unacked -->
+        <div class="dash-card">
+            <div class="dash-card__header">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                Top 10 — Onbevestigde berichten
+            </div>
+            <table class="dash-table" id="tblTopUnacked">
+                <thead><tr><th>Queue</th><th>VHost</th><th>Verbinding</th><th class="num">Unacked</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+@section Scripts {
+<script src="~/js/app.js" asp-append-version="true"></script>
+<script src="~/js/dashboard.js" asp-append-version="true"></script>
+<script>document.addEventListener('DOMContentLoaded', () => Dashboard.load());</script>
+}

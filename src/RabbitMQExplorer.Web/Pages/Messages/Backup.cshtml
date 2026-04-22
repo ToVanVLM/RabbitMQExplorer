@@ -1,0 +1,247 @@
+@page
+@model RabbitMQExplorer.Web.Pages.Messages.BackupModel
+@{
+    ViewData["Title"] = "Backup & Restore";
+    Layout = "_Layout";
+}
+
+@section HeadStyles {
+<style>html,body{overflow:auto;height:auto}</style>
+}
+
+<partial name="_ManagementNav" />
+
+<div style="padding:24px;width:100%">
+    <div class="d-flex gap-2" style="margin-bottom:16px;align-items:center">
+        <h1 style="font-size:18px;font-weight:600;flex:1">Backup &amp; Restore</h1>
+    </div>
+
+    <!-- Backup sectie -->
+    <div style="background:var(--bg-sidebar);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px;margin-bottom:20px">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Queue backup maken</h2>
+        <div class="d-flex gap-2">
+            <select class="form-control" id="backupConn" style="max-width:200px" onchange="loadVHostsBackup()">
+                @foreach (var c in Model.Connections)
+                {
+                    <option value="@c.Id">@c.Name (@c.Environment)</option>
+                }
+            </select>
+            <select class="form-control" id="backupVhost" style="max-width:150px" onchange="loadQueuesBackup()">
+                <option>Laden...</option>
+            </select>
+            <select class="form-control" id="backupQueue" style="flex:1">
+                <option>Laden...</option>
+            </select>
+            <input type="number" id="backupCount" value="10000" class="form-control" style="width:120px" placeholder="Max berichten" />
+            <button class="btn" onclick="makeBackup()">Backup maken</button>
+        </div>
+        <div id="backupProgress" style="margin-top:10px;font-size:12px;color:var(--fg-muted)"></div>
+    </div>
+
+    <!-- Restore sectie -->
+    <div style="background:var(--bg-sidebar);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px;margin-bottom:20px">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Restore vanuit bestand</h2>
+        <div class="d-flex gap-2">
+            <label class="btn btn--ghost" style="cursor:pointer">
+                Bestand kiezen
+                <input type="file" accept=".json" style="display:none" id="restoreFile" onchange="loadRestorePreview(this)" />
+            </label>
+            <span id="restoreFileName" class="text-muted" style="align-self:center;font-size:12px">Geen bestand gekozen</span>
+        </div>
+        <div id="restorePreview" style="display:none;margin-top:12px">
+            <div class="d-flex gap-2" style="margin-bottom:8px">
+                <select class="form-control" id="restoreConn" style="max-width:200px" onchange="loadVHostsRestore()">
+                    @foreach (var c in Model.Connections)
+                    {
+                        <option value="@c.Id">@c.Name (@c.Environment)</option>
+                    }
+                </select>
+                <select class="form-control" id="restoreVhost" style="max-width:150px" onchange="loadQueuesRestore()">
+                    <option>Laden...</option>
+                </select>
+                <select class="form-control" id="restoreQueue" style="flex:1">
+                    <option>Laden...</option>
+                </select>
+                <button class="btn" onclick="doRestore()">Restore</button>
+            </div>
+            <div id="restoreInfo" class="text-muted" style="font-size:12px"></div>
+        </div>
+    </div>
+
+    <!-- Migratie sectie -->
+    <div style="background:var(--bg-sidebar);border:1px solid var(--border-default);border-radius:var(--radius-md);padding:16px">
+        <h2 style="font-size:14px;font-weight:600;margin-bottom:12px">Migratie tussen omgevingen</h2>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:start">
+            <div>
+                <div class="form-label">Bron</div>
+                <select class="form-control" id="migSrcConn" style="margin-bottom:6px" onchange="loadMigSrc()">
+                    @foreach (var c in Model.Connections)
+                    {
+                        <option value="@c.Id">@c.Name (@c.Environment)</option>
+                    }
+                </select>
+                <select class="form-control" id="migSrcVhost" style="margin-bottom:6px" onchange="loadMigSrcQueues()"></select>
+                <select class="form-control" id="migSrcQueue"></select>
+            </div>
+            <div style="align-self:center;padding-top:20px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5" width="32" height="32">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                </svg>
+            </div>
+            <div>
+                <div class="form-label">Doel</div>
+                <select class="form-control" id="migDstConn" style="margin-bottom:6px" onchange="loadMigDst()">
+                    @foreach (var c in Model.Connections)
+                    {
+                        <option value="@c.Id">@c.Name (@c.Environment)</option>
+                    }
+                </select>
+                <select class="form-control" id="migDstVhost" style="margin-bottom:6px" onchange="loadMigDstQueues()"></select>
+                <select class="form-control" id="migDstQueue"></select>
+            </div>
+        </div>
+        <div class="d-flex gap-2" style="margin-top:12px">
+            <input type="number" id="migCount" value="1000" class="form-control" style="width:120px" placeholder="Max berichten" />
+            <button class="btn" onclick="doMigrate()">Migreren</button>
+        </div>
+        <div id="migProgress" style="margin-top:10px;font-size:12px;color:var(--fg-muted)"></div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+window.AppContext = window.AppContext ?? {};
+
+async function loadVHostsInto(connId, selectEl, onLoad) {
+    try {
+        const v = await App.apiGet(`/api/connections/${connId}/vhosts`);
+        selectEl.innerHTML = v.map(x => `<option value="${App.escHtml(x.name)}">${App.escHtml(x.name)}</option>`).join('');
+        if (onLoad) await onLoad();
+    } catch {}
+}
+
+async function loadQueuesInto(connId, vhost, selectEl) {
+    try {
+        const q = await App.apiGet(`/api/connections/${connId}/vhosts/${encodeURIComponent(vhost)}/queues`);
+        selectEl.innerHTML = q.map(x => `<option value="${App.escHtml(x.name)}">${App.escHtml(x.name)} (${x.messages})</option>`).join('');
+    } catch {}
+}
+
+// Backup
+async function loadVHostsBackup() {
+    const c = document.getElementById('backupConn').value;
+    await loadVHostsInto(c, document.getElementById('backupVhost'), loadQueuesBackup);
+}
+async function loadQueuesBackup() {
+    await loadQueuesInto(
+        document.getElementById('backupConn').value,
+        document.getElementById('backupVhost').value,
+        document.getElementById('backupQueue')
+    );
+}
+
+async function makeBackup() {
+    const connId = document.getElementById('backupConn').value;
+    const vhost = document.getElementById('backupVhost').value;
+    const queue = document.getElementById('backupQueue').value;
+    const count = parseInt(document.getElementById('backupCount').value) || 10000;
+    const prog = document.getElementById('backupProgress');
+    prog.textContent = 'Ophalen...';
+    try {
+        const msgs = await App.apiGet(`/api/connections/${connId}/vhosts/${encodeURIComponent(vhost)}/queues/${encodeURIComponent(queue)}/messages?count=${count}&peek=true`);
+        const json = JSON.stringify(msgs, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `${queue}_backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click(); URL.revokeObjectURL(url);
+        prog.textContent = `✓ ${msgs.length} berichten geëxporteerd.`;
+        prog.style.color = 'var(--fg-success)';
+        Toast.success(`Backup van ${queue} klaar (${msgs.length} berichten).`);
+    } catch(e) {
+        prog.textContent = '✗ Fout: ' + e.message;
+        prog.style.color = 'var(--fg-error)';
+    }
+}
+
+// Restore
+let restoreMessages = [];
+async function loadRestorePreview(input) {
+    const file = input.files[0];
+    if (!file) return;
+    document.getElementById('restoreFileName').textContent = file.name;
+    const text = await file.text();
+    try {
+        restoreMessages = JSON.parse(text);
+        document.getElementById('restoreInfo').textContent = `${restoreMessages.length} berichten geladen.`;
+        document.getElementById('restorePreview').style.display = 'block';
+        await loadVHostsRestore();
+    } catch { Toast.error('Ongeldig JSON bestand.'); }
+}
+
+async function loadVHostsRestore() {
+    await loadVHostsInto(document.getElementById('restoreConn').value, document.getElementById('restoreVhost'), loadQueuesRestore);
+}
+async function loadQueuesRestore() {
+    await loadQueuesInto(document.getElementById('restoreConn').value, document.getElementById('restoreVhost').value, document.getElementById('restoreQueue'));
+}
+
+async function doRestore() {
+    const connId = document.getElementById('restoreConn').value;
+    const vhost = document.getElementById('restoreVhost').value;
+    const queue = document.getElementById('restoreQueue').value;
+    if (!restoreMessages.length || !queue) return;
+    let ok = 0;
+    for (const m of restoreMessages) {
+        try {
+            await App.apiPost(`/api/connections/${connId}/vhosts/${encodeURIComponent(vhost)}/queues/${encodeURIComponent(queue)}/publish`,
+                { properties: m.properties ?? {}, routing_key: queue, payload: m.payload, payload_encoding: m.payload_encoding ?? 'string' });
+            ok++;
+        } catch {}
+    }
+    Toast.success(`${ok} berichten hersteld naar ${queue}`);
+}
+
+// Migratie
+async function loadMigSrc() { await loadVHostsInto(document.getElementById('migSrcConn').value, document.getElementById('migSrcVhost'), loadMigSrcQueues); }
+async function loadMigDst() { await loadVHostsInto(document.getElementById('migDstConn').value, document.getElementById('migDstVhost'), loadMigDstQueues); }
+async function loadMigSrcQueues() { await loadQueuesInto(document.getElementById('migSrcConn').value, document.getElementById('migSrcVhost').value, document.getElementById('migSrcQueue')); }
+async function loadMigDstQueues() { await loadQueuesInto(document.getElementById('migDstConn').value, document.getElementById('migDstVhost').value, document.getElementById('migDstQueue')); }
+
+async function doMigrate() {
+    const srcConn = document.getElementById('migSrcConn').value;
+    const srcVhost = document.getElementById('migSrcVhost').value;
+    const srcQueue = document.getElementById('migSrcQueue').value;
+    const dstConn = document.getElementById('migDstConn').value;
+    const dstVhost = document.getElementById('migDstVhost').value;
+    const dstQueue = document.getElementById('migDstQueue').value;
+    const count = parseInt(document.getElementById('migCount').value) || 1000;
+    const prog = document.getElementById('migProgress');
+    prog.textContent = 'Ophalen van bron...';
+    try {
+        const msgs = await App.apiGet(`/api/connections/${srcConn}/vhosts/${encodeURIComponent(srcVhost)}/queues/${encodeURIComponent(srcQueue)}/messages?count=${count}&peek=true`);
+        prog.textContent = `${msgs.length} berichten opgehaald. Publiceren naar doel...`;
+        let ok = 0;
+        for (const m of msgs) {
+            try {
+                await App.apiPost(`/api/connections/${dstConn}/vhosts/${encodeURIComponent(dstVhost)}/queues/${encodeURIComponent(dstQueue)}/publish`,
+                    { properties: m.properties ?? {}, routing_key: dstQueue, payload: m.payload, payload_encoding: m.payload_encoding ?? 'string' });
+                ok++;
+            } catch {}
+        }
+        prog.textContent = `✓ ${ok} berichten gemigreerd naar ${dstQueue}.`;
+        prog.style.color = 'var(--fg-success)';
+        Toast.success(`Migratie klaar: ${ok} berichten naar ${dstQueue}`);
+    } catch(e) {
+        prog.textContent = '✗ Fout: ' + e.message;
+        prog.style.color = 'var(--fg-error)';
+    }
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', async () => {
+    if (document.getElementById('backupConn')) await loadVHostsBackup();
+});
+</script>
+}
